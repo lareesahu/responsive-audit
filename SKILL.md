@@ -185,6 +185,10 @@ ceiling verdict — what it is measured against and what is still short.
 
 ## Pitfalls that cause false passes
 
+- **Building the summary table by hand.** Every row of a findings table comes from the run's JSON, generated,
+  never typed: on 2026-10-22 a hand-written row called a site clean while that site's own JSON flagged a
+  squashed logo and a 14 px input on the same widths. Re-measured live the next hour, the row was wrong and the
+  JSON was right. If a row and the JSON disagree, the JSON is the finding.
 - Measuring before fonts and images settle: scroll first, wait, then measure.
 - Testing only phone widths. Half the failure modes live above 1440 px.
 - Treating `max-width` as inherently good: a 1200 px ceiling on a 3440 px display throws away the screen.
