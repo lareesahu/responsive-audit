@@ -1,7 +1,7 @@
 ---
 name: responsive-audit
 description: Use when auditing or fixing an app's responsiveness.
-version: 1.1.0
+version: 1.2.0
 author: Lareesa Hu (Pulse Branding), built with Hermes
 license: Proprietary
 metadata:
@@ -58,6 +58,9 @@ Device lists are a checklist of *places to look*, never the design target. If th
 construction, every width between 320 and 2560 passes without a new breakpoint.
 
 ## Workflow
+
+Public source of this skill: <https://github.com/lareesahu/responsive-audit> (MIT). If the local copy and
+the repo disagree, the repo is canonical — pull it rather than editing a stale copy.
 
 ### 1. Establish the target
 Name the app, the URL or file, the build (branch/commit or port), and the viewport ladder you will test.
