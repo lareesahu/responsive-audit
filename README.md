@@ -5,6 +5,8 @@ reflow floor to a 3440 px ultrawide.**
 
 ![the same page at 375 and 430 px](docs/preview.png)
 
+![the same page at 375, 1440 and 2560 px](docs/preview-wide.png)
+
 Point it at any URL. It loads the page at every width that matters, traces the actual boxes, and tells you
 *which element* breaks, *why*, and *which fix pattern* applies — at both ends of the range, because a page
 that is perfect on a phone can still be a narrow ribbon on a 27-inch display.
