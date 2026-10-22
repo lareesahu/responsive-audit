@@ -18,13 +18,16 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_WIDTHS = [320, 375, 390, 430, 768, 1024, 1280, 1440]
+DEFAULT_WIDTHS = [320, 375, 390, 430, 768, 1024, 1440, 1920, 2560]
 
 # Real device sizes (CSS px). Height matters: a 667px SE breaks designs a 932px Pro Max hides.
 SIZE_PRESETS = {
     "iphone": [(375, 667), (390, 844), (430, 932)],          # SE 2/3, 13, 16 Pro Max
     "duo": [(375, 667), (430, 932)],                         # the two-phone comparison
     "phone+tablet": [(390, 844), (768, 1024)],
+    "wide": [(1440, 900), (1920, 1080), (2560, 1440), (3440, 1440)],   # laptop to ultrawide
+    "full": [(320, 568), (375, 667), (390, 844), (430, 932), (768, 1024),
+             (1024, 768), (1440, 900), (1920, 1080), (2560, 1440)],
 }
 
 PROBE = r"""(vwExpected) => {
@@ -149,6 +152,72 @@ PROBE = r"""(vwExpected) => {
     if (r.width && r.height) fixedArea = Math.max(fixedArea, (r.width * r.height) / (vw * vh));
   });
 
+  // --- wide-screen checks -------------------------------------------------
+  // 1. Measure: WCAG 1.4.8 caps a line of text at 80 characters (40 for CJK). A layout that simply
+  //    stretches at 2560px breaks readability without breaking any box.
+  const longs = [];
+  document.querySelectorAll('p, li, blockquote, dd, figcaption, article div').forEach((el) => {
+    if (longs.length > 120) return;
+    const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (txt.length < 140) return;
+    if (el.querySelector('p, div, li, table, ul, ol')) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 200) return;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = Array.from(range.getClientRects()).filter(x => x.width > 4 && x.height > 4);
+      if (rects.length < 2) return;
+      const tops = new Set(rects.map(x => Math.round(x.top)));
+      const lines = tops.size;
+      if (lines < 3) return;
+      const cjk = (txt.match(/[\u3040-\u30ff\u3400-\u9fff]/g) || []).length / txt.length;
+      const perLine = txt.length / lines;
+      longs.push({ sel: pathOf(el), perLine: Math.round(perLine), lines,
+        limit: cjk > 0.3 ? 40 : 80, width: Math.round(r.width) });
+    } catch (e) {}
+  });
+
+  // 2. Pixels: an image stretched past its natural width is blurry, however tidy the box looks.
+  const upscaled = [];
+  document.querySelectorAll('img').forEach((el) => {
+    if (!el.naturalWidth || el.naturalWidth < 40) return;
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    const ratio = (r.width * (window.devicePixelRatio || 1)) / el.naturalWidth;
+    if (ratio > 1.05) {
+      upscaled.push({ sel: pathOf(el), shownWidth: Math.round(r.width), natural: el.naturalWidth,
+        ratio: +ratio.toFixed(2) });
+    }
+  });
+
+  // 3. Where the content actually ends. Full-bleed art is legitimate, so this measures the extent of
+  //    every visible text block and image rather than trusting a wrapper's own width.
+  let deadMargin = 0, deadRight = 0, contentWidth = vw, textCol = 0;
+  if (document.body) {
+    let minL = 1e9, maxR = -1e9;
+    const paras = [];
+    document.querySelectorAll('h1, h2, h3, h4, p, li, img, button, a, table, figure, video').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width < 40 || r.height < 8) return;
+      const st = getComputedStyle(el);
+      if (st.visibility === 'hidden' || st.display === 'none' || +st.opacity === 0) return;
+      if (r.bottom < -2000 || r.top > 20000) return;
+      minL = Math.min(minL, r.left + window.scrollX);
+      maxR = Math.max(maxR, r.right + window.scrollX);
+      if (el.tagName === 'P') paras.push(Math.round(r.width));
+    });
+    if (maxR > minL) {
+      contentWidth = Math.round(maxR - minL);
+      deadMargin = Math.round(Math.max(0, minL));
+      deadRight = Math.round(Math.max(0, vw - maxR));
+    }
+    if (paras.length) {
+      paras.sort((a, b) => a - b);
+      textCol = paras[Math.floor(paras.length / 2)];
+    }
+  }
+
   const meta = document.querySelector('meta[name="viewport"]');
   const metaContent = meta ? meta.getAttribute('content') || '' : '';
 
@@ -165,6 +234,9 @@ PROBE = r"""(vwExpected) => {
     clipped: dedupe(clipped, x => x.sel).slice(0, 10),
     small: dedupe(small, x => x.sel + x.w + x.h).slice(0, 20),
     unmeasured,
+    longLines: longs.slice(0, 8),
+    upscaledImages: upscaled.slice(0, 8),
+    contentWidth, deadMargin, deadRight, textCol,
     tiny: dedupe(tiny, x => x.sel).slice(0, 8),
     zoomRisk: dedupe(zoomers, x => x.sel).slice(0, 8),
     distorted: dedupe(distorted, x => x.sel).slice(0, 8),
@@ -258,6 +330,14 @@ def verdicts(row, strict_touch=False):
         fails.append(f"{len(row['zoomRisk'])} input<16px")
     if row.get("distorted"):
         fails.append(f"{len(row['distorted'])} distorted img")
+    for ln in row.get("longLines", []):
+        if ln["perLine"] > ln["limit"] * 1.25:
+            fails.append(f"{ln['perLine']} chars/line")
+            break
+    for im in row.get("upscaledImages", []):
+        if im["ratio"] > 1.25:
+            fails.append(f"image upscaled {im['ratio']}x")
+            break
     severe = [t for t in row.get("small", []) if t.get("severe")]
     if severe and (row["width"] <= 768 or strict_touch):
         fails.append("target<24px")
@@ -309,7 +389,7 @@ def main():
     json_path = Path(args.json) if args.json else out_dir / "report.json"
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    head = f"{'w':>5} {'overflow':>9} {'clip':>5} {'<44px':>6} {'<24px':>6} {'tiny':>5} {'zoom':>5} {'img':>4}  verdict"
+    head = f"{'w':>5} {'overflow':>9} {'clip':>5} {'<44px':>6} {'<24px':>6} {'tiny':>5} {'zoom':>5} {'img':>4} {'long':>5} {'up':>3}  verdict"
     print("\n" + head)
     print("-" * len(head))
     failures = 0
@@ -320,7 +400,9 @@ def main():
         severe = sum(1 for t in row.get("small", []) if t.get("severe"))
         print(f"{row['width']:>5} {row.get('overflow', 0):>9} {len(row.get('clipped', [])):>5} "
               f"{len(row.get('small', [])):>6} {severe:>6} {len(row.get('tiny', [])):>5} "
-              f"{len(row.get('zoomRisk', [])):>5} {len(row.get('distorted', [])):>4}  "
+              f"{len(row.get('zoomRisk', [])):>5} {len(row.get('distorted', [])):>4} "
+              f"{max([l['perLine'] for l in row.get('longLines', [])], default=0):>5} "
+              f"{len(row.get('upscaledImages', [])):>3}  "
               + ("PASS" if ok else "FAIL " + "; ".join(fails)))
     print("\nADVISORY (reported, does not fail the gate): targets under 44px, type under 12px, "
           "fixed chrome over 35% of the viewport.")
@@ -334,7 +416,8 @@ def main():
             continue
         for label, key in (("overflows", "offenders"), ("clipped", "clipped"),
                            ("tiny text", "tiny"), ("inputs <16px", "zoomRisk"),
-                           ("distorted images", "distorted")):
+                           ("distorted images", "distorted"), ("long lines", "longLines"),
+                           ("upscaled images", "upscaledImages")):
             for item in row.get(key, [])[:4]:
                 print(f"  {label}: {item}")
         bad = [t for t in row.get("small", []) if t.get("severe")][:4]
@@ -342,6 +425,28 @@ def main():
             print(f"  target <24px: {t['w']}x{t['h']} {t['sel']} {t['text'][:40]}")
         if row.get("hasDeviceWidth") is False:
             print(f"  viewport meta: {row.get('viewportMeta')!r}")
+        if row.get("deadMargin"):
+            print(f"  content {row.get('contentWidth')}px of {row['width']}px "
+                  f"({row['deadMargin']}px dead each side)")
+
+    # does the layout actually change at all once it has room? A column that stops growing is a
+    # decision — fine for prose, a waste on a 3440px display — so name it rather than guess.
+    capped = [r for r in rows if r.get("contentWidth")]
+    if len(capped) >= 2:
+        widest = max(capped, key=lambda r: r["width"])
+        narrowest = min(capped, key=lambda r: r["width"])
+        if widest["width"] >= 1600 and abs(widest["contentWidth"] - narrowest["contentWidth"]) <= 12:
+            print(f"\nNOTE layout plateaus: content spans {narrowest['contentWidth']}px at "
+                  f"{narrowest['width']}px and {widest['contentWidth']}px at {widest['width']}px "
+                  f"({widest.get('deadMargin', 0)}px dead left, {widest.get('deadRight', 0)}px right). "
+                  f"Fine for prose, a waste for anything that could add columns.")
+        tc = [r for r in rows if r.get("textCol")]
+        if tc:
+            w = max(tc, key=lambda r: r["width"])
+            if w["width"] >= 1600 and w["textCol"] and w["textCol"] / w["width"] < 0.45:
+                print(f"NOTE text column is {w['textCol']}px on a {w['width']}px screen "
+                      f"({round(100 * w['textCol'] / w['width'])}%) — readable, but check the layout is composed, "
+                      f"not just centred.")
 
     print(f"\nJSON: {json_path}")
     print(f"Screenshots: {out_dir}")

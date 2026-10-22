@@ -5,17 +5,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  audit:
+  # Two ends, two jobs: the phone fails differently from the ultrawide, and a single job hides which.
+  phones:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install playwright && python -m playwright install --with-deps chromium
-      - name: Audit the deployed preview
-        run: python scripts/responsive_audit.py --url "${{ vars.PREVIEW_URL }}" --devices iphone --out audit
+      - name: Audit phones (320 -> 430)
+        run: python scripts/responsive_audit.py --url "${{ vars.PREVIEW_URL }}" --devices iphone --out audit-phone
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: responsive-audit
-          path: audit/
+          name: responsive-audit-phone
+          path: audit-phone/
+
+  wide:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - name: Audit wide (1440 -> 3440)
+        run: python scripts/responsive_audit.py --url "${{ vars.PREVIEW_URL }}" --devices wide --no-shots --out audit-wide
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: responsive-audit-wide
+          path: audit-wide/
