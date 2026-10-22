@@ -67,7 +67,8 @@ PROBE = r"""(vwExpected) => {
   };
   const textOf = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 70);
 
-  const offenders = [], clipped = [], small = [], tiny = [], zoomers = [], distorted = [];
+  const offenders = [], clippedByAncestor = [], clipped = [], small = [], tiny = [], zoomers = [], distorted = [];
+  let unmeasured = 0;
   const nodes = document.querySelectorAll('body *');
   const limit = Math.min(nodes.length, 5000);
 
@@ -77,13 +78,23 @@ PROBE = r"""(vwExpected) => {
     const r = el.getBoundingClientRect(), s = cs(el);
 
     if ((r.right > vw + 1 || r.left < -1) && !inScroller(el)) {
-      offenders.push({ sel: pathOf(el), left: Math.round(r.left), right: Math.round(r.right),
-        width: Math.round(r.width), text: textOf(el) });
+      const item = { sel: pathOf(el), left: Math.round(r.left), right: Math.round(r.right),
+        width: Math.round(r.width), text: textOf(el) };
+      // An element wider than the viewport inside an overflow:hidden parent is clipped, not scrollable.
+      // It still matters (content may be cut off) but it is not what makes the page scroll sideways.
+      let hiddenAncestor = false, n = el.parentElement;
+      while (n && n !== document.body) {
+        const ox = cs(n).overflowX;
+        if (ox === 'hidden' || ox === 'clip') { hiddenAncestor = true; break; }
+        n = n.parentElement;
+      }
+      (hiddenAncestor ? clippedByAncestor : offenders).push(item);
     }
 
     const hasText = el.childNodes && Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent.trim().length > 3);
     if (hasText) {
-      if (el.scrollHeight > el.clientHeight + 2 && (s.overflowY === 'hidden' || s.overflowY === 'clip')) {
+      if (el.scrollHeight > el.clientHeight + 2 && (s.overflowY === 'hidden' || s.overflowY === 'clip')
+          && el.clientHeight >= 8 && el.clientWidth >= 8) {
         clipped.push({ sel: pathOf(el), client: el.clientHeight, scroll: el.scrollHeight, text: textOf(el) });
       }
       const fs = parseFloat(s.fontSize);
@@ -100,9 +111,17 @@ PROBE = r"""(vwExpected) => {
       const w = Math.round(r.width), h = Math.round(r.height);
       // WCAG 2.5.8 exempts targets inside a sentence; a link whose box is inline text is not a control.
       const inlineInText = s.display === 'inline' && !!el.closest('p, li, dd, td, span, small, figcaption');
-      if (w && h && !inlineInText && (w < 44 || h < 44)) {
-        small.push({ sel: pathOf(el), w, h, text: textOf(el),
-          label: el.getAttribute('aria-label') || '', severe: (w < 24 || h < 24) });
+      const pending = Array.from(el.querySelectorAll('img')).some(im => im.naturalWidth === 0 && im.loading !== 'lazy');
+      if (pending) { unmeasured++; }
+      else if (w && h && !inlineInText && (w < 44 || h < 44)) {
+        const name = (el.getAttribute('aria-label') || el.textContent || '').trim();
+        const hasGlyph = !!el.querySelector('img, svg, i, picture');
+        const iconOnly = !name && hasGlyph;
+        // Hard failure is reserved for controls a user must hit: form fields, buttons, icon-only buttons.
+        // A small text or logo link is a real finding, but it is advisory, not a broken page.
+        const control = ['button', 'input', 'select', 'textarea'].includes(tag) || role === 'button';
+        small.push({ sel: pathOf(el), w, h, text: name.slice(0, 40), iconOnly,
+          severe: (control && (w < 24 || h < 24)) || (w < 24 && h < 24 && !iconOnly && !name) });
       }
     }
 
@@ -142,8 +161,10 @@ PROBE = r"""(vwExpected) => {
     width: vw, reportedWidth: reported, viewportExpanded: Math.max(0, reported - vw),
     height: vh, overflow,
     offenders: dedupe(offenders, x => x.sel).slice(0, 12),
+    clippedByAncestor: dedupe(clippedByAncestor, x => x.sel).slice(0, 8),
     clipped: dedupe(clipped, x => x.sel).slice(0, 10),
     small: dedupe(small, x => x.sel + x.w + x.h).slice(0, 20),
+    unmeasured,
     tiny: dedupe(tiny, x => x.sel).slice(0, 8),
     zoomRisk: dedupe(zoomers, x => x.sel).slice(0, 8),
     distorted: dedupe(distorted, x => x.sel).slice(0, 8),
@@ -189,7 +210,11 @@ def audit(url, sizes, out_dir, wait_ms, shots):
             )
             page = ctx.new_page()
             try:
-                page.goto(url, wait_until="load", timeout=45000)
+                try:
+                    page.goto(url, wait_until="load", timeout=45000)
+                except Exception:
+                    # heavy pages and third-party beacons miss `load`; DOM + settle is enough to measure
+                    page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 try:
                     page.wait_for_load_state("networkidle", timeout=6000)
                 except Exception:
@@ -199,8 +224,11 @@ def audit(url, sizes, out_dir, wait_ms, shots):
                 data["target"] = url
                 if shots:
                     shot = out_dir / f"{slug}_{w}.png"
-                    page.screenshot(path=str(shot), full_page=True)
-                    data["screenshot"] = str(shot)
+                    try:
+                        page.screenshot(path=str(shot), full_page=True, timeout=90000)
+                        data["screenshot"] = str(shot)
+                    except Exception as exc:
+                        data["screenshot_error"] = str(exc)[:160]
             except Exception as exc:
                 data = {"width": w, "target": url, "error": str(exc)[:300]}
             finally:
