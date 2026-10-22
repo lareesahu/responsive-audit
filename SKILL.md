@@ -1,7 +1,7 @@
 ---
 name: responsive-audit
 description: Use when auditing or fixing an app's responsiveness.
-version: 2.1.0
+version: 2.2.0
 author: Lareesa Hu (Pulse Branding), built with Hermes
 license: MIT
 metadata:
@@ -14,6 +14,16 @@ metadata:
     - Wide
     - Audit
 ---
+
+## The standard: aim at the ceiling, never the floor (Lareesa, 2026-10-22 — permanent, every task in this skill)
+
+This overrides any lower bar written elsewhere in this file.
+
+1. Two measurements exist for any work: the floor (the minimum that will be accepted) and the ceiling (the best version of this work that exists).
+2. Clearing the floor — a threshold, checklist, test, score, gate, spec, "nothing is broken", "it passes" — means the work is allowed. It does not mean the work is finished or good.
+3. Before reporting, find the best existing example of the deliverable, compare the result against it point by point, and close every gap you can.
+4. In the report, name what you compared against and state what is still worse. If you did not compare, the work is not finished.
+5. When the ceiling cannot be reached, say plainly what is missing and why. Never describe the floor as the ceiling, and never lower the target to match the result.
 
 # Responsive audit
 
@@ -113,10 +123,17 @@ instead of inventing values. Default ladder and the window-size classes: `refere
 
 ```bash
 python scripts/responsive_audit.py --url http://127.0.0.1:5173 --out ./audit          # full ladder
-python scripts/responsive_audit.py --url https://site.com --devices iphone           # phones only
+python scripts/responsive_audit.py --url https://site.com --devices duo              # iPhone Duo closed 466x678 + open 626x890
+python scripts/responsive_audit.py --url https://site.com --devices duo-land         # the same two, rotated
+python scripts/responsive_audit.py --url https://site.com --devices iphone           # iPhone 18 Pro / 18 Pro Max
 python scripts/responsive_audit.py --url https://site.com --devices wide             # 1440 → 3440
 python scripts/responsive_audit.py --url https://site.com --devices full             # 320 → 2560
 ```
+
+`--devices duo` is the foldable test, not two phones side by side: **one** iPhone Duo measured closed
+(5.4" outer, 466 x 678) and open (7.6" inner, 626 x 890). Both frames come from Apple's published
+specifications. A page that only changes at 768 px will look identical open and closed — that is a failure,
+not a pass.
 
 It loads the page at every width, scrolls it to trigger lazy content, then traces real geometry:
 horizontal overflow and which element causes it, text clipped by fixed heights, targets under 44 px,

@@ -27,7 +27,7 @@ python scripts/responsive_audit.py --url https://example.com --devices full --ou
 
 Responsiveness fails in two directions, and most audits only check one.
 
-| Narrow end (320–430) | Wide end (1440–3840) |
+| Narrow end (320–466) | Wide end (626–3840) |
 |---|---|
 | fixed widths force a sideways scroll | a 1200 px column floats in 1300 px of margin |
 | rigid rows overflow | lines run 120+ characters |
@@ -41,6 +41,24 @@ Every one of those is a missing constraint, not a missing media query:
 > Every dimension is intrinsic (content decides), relative (`%`, `fr`, `vw` inside `clamp()`), or bounded
 > (`min()` / `max()`). Each hard width is a promise to break at some viewport. So the layout is built down
 > from 320 CSS px and up from 1440 — never from a single desktop screenshot.
+
+## The foldable case
+
+`--devices duo` is **one device, two layouts**, not two phones side by side:
+
+| State | Display | CSS viewport |
+|---|---|---|
+| Closed | 5.4" outer, 1398 x 2034 @ 460 ppi | **466 x 678** |
+| Open | 7.6" inner folding, 1878 x 2670 @ 430 ppi | **626 x 890** |
+| Open, rotated | — | 890 x 626 |
+
+The open Duo sits in the *medium* window class (600–839). A page whose only breakpoint is `min-width: 768px`
+renders identically closed and open, which is the failure the foldable exposes: the user unfolds the device
+and gets the phone layout. If a two-column or side-rail state exists, it has to arrive at 626.
+
+Emulation reproduces the viewport, not the hardware — the crease, per-display safe areas and hinge behaviour
+stay unverified. Sizes are taken from Apple's published specifications (October 2026); re-check them when a
+new iPhone ships.
 
 ## Standards it encodes
 
@@ -108,10 +126,11 @@ python scripts/responsive_audit.py --url https://your-site.com
 python scripts/responsive_audit.py --url http://127.0.0.1:5173 --out ./audit
 
 # presets
-python scripts/responsive_audit.py --url https://example.com --devices iphone   # 375x667, 390x844, 430x932
+python scripts/responsive_audit.py --url https://example.com --devices duo      # iPhone Duo: closed 466x678 + open 626x890
+python scripts/responsive_audit.py --url https://example.com --devices duo-land # the same device rotated: 678x466 + 890x626
+python scripts/responsive_audit.py --url https://example.com --devices iphone   # iPhone 18 Pro 402x874, 18 Pro Max 440x956
 python scripts/responsive_audit.py --url https://example.com --devices wide     # 1440 -> 3440
 python scripts/responsive_audit.py --url https://example.com --devices full     # 320 -> 2560, all of it
-python scripts/responsive_audit.py --url https://example.com --devices duo      # two phones, side by side
 
 # explicit sizes, or no screenshots with a custom report path
 python scripts/responsive_audit.py --url https://example.com --sizes 390x844,768x1024,2560x1440

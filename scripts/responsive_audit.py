@@ -21,12 +21,17 @@ from pathlib import Path
 DEFAULT_WIDTHS = [320, 375, 390, 430, 768, 1024, 1440, 1920, 2560]
 
 # Real device sizes (CSS px). Height matters: a 667px SE breaks designs a 932px Pro Max hides.
+# CSS viewports (device pixels / DPR 3), verified against Apple's published specs, Oct 2026.
 SIZE_PRESETS = {
-    "iphone": [(375, 667), (390, 844), (430, 932)],          # SE 2/3, 13, 16 Pro Max
-    "duo": [(375, 667), (430, 932)],                         # the two-phone comparison
-    "phone+tablet": [(390, 844), (768, 1024)],
+    # iPhone Duo: one physical device, two live layouts. Closed = 5.4" outer display
+    # (1398x2034 @460ppi); open = 7.6" inner folding display (1878x2670 @430ppi).
+    # A responsive page must survive both, and both again rotated.
+    "duo": [(466, 678), (626, 890)],                      # closed, open
+    "duo-land": [(678, 466), (890, 626)],                 # closed, open, rotated
+    "iphone": [(402, 874), (440, 956)],                   # 18 Pro, 18 Pro Max
+    "phone+tablet": [(440, 956), (768, 1024)],
     "wide": [(1440, 900), (1920, 1080), (2560, 1440), (3440, 1440)],   # laptop to ultrawide
-    "full": [(320, 568), (375, 667), (390, 844), (430, 932), (768, 1024),
+    "full": [(320, 568), (466, 678), (626, 890), (768, 1024),
              (1024, 768), (1440, 900), (1920, 1080), (2560, 1440)],
 }
 
@@ -320,9 +325,9 @@ def verdicts(row, strict_touch=False):
     if row.get("error"):
         return False, ["error"]
     fails = []
-    if row.get("overflow", 0) > 1:
+    if (row.get("overflow") or 0) > 1:
         fails.append(f"overflow +{row['overflow']}px")
-    if row.get("viewportExpanded", 0) > 1:
+    if (row.get("viewportExpanded") or 0) > 1:
         fails.append(f"layout widened {row['viewportExpanded']}px")
     if row.get("clipped"):
         fails.append(f"{len(row['clipped'])} clipped")
