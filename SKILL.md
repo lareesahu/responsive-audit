@@ -1,7 +1,7 @@
 ---
 name: responsive-audit
 description: Use when auditing or fixing an app's responsiveness.
-version: 2.0.0
+version: 2.1.0
 author: Lareesa Hu (Pulse Branding), built with Hermes
 license: MIT
 metadata:
@@ -152,9 +152,24 @@ Re-run until every width passes, then look at the four screenshots that matter w
 with an ugly phone layout, or a tidy phone page that turns into a narrow ribbon on a 27-inch display, is a
 fail: geometry is the floor, not the standard.
 
-Report as: what failed, what class it belonged to, what changed, and the gate line
-`Responsive gate: 320 ✓ 375 ✓ 390 ✓ 430 ✓ 768 ✓ 1024 ✓ 1440 ✓ 1920 ✓ 2560 ✓` — or the widths that still
-fail, named.
+### 5. The ceiling pass (a green gate is not a verdict)
+
+The gate above is the floor: nothing is broken. It is not the deliverable. Before reporting, compare the
+page against the best version of its own kind and close what you can:
+
+| Page type | The ceiling looks like |
+|---|---|
+| Marketing / landing | a hero that uses the display at 2560, not a 1200 px column with margins; type that scales; imagery that stays sharp |
+| Editorial / prose | 65–75 characters per line at every width, a calm measure, deliberate rather than default whitespace |
+| Catalogue / dashboard | density that grows with the display (`auto-fit` plus a wider minimum), no 700 px cards holding one sentence |
+| App shell | persistent nav and side rails at ≥ 1024, no hamburger on a desktop |
+
+State which rows you checked and what remains below the ceiling. "Passes at every width" is a floor
+sentence; the report says how good it is, and what still falls short.
+
+Report as: what failed, what class it belonged to, what changed, the gate line
+`Responsive gate: 320 ✓ 375 ✓ 390 ✓ 430 ✓ 768 ✓ 1024 ✓ 1440 ✓ 1920 ✓ 2560 ✓`, then the one-line
+ceiling verdict — what it is measured against and what is still short.
 
 ## What this skill is not
 
@@ -180,3 +195,5 @@ fail, named.
 - Assuming `overflow-x: hidden` on `body` is a fix. It hides the symptom and clips content users needed.
 - Declaring a component responsive because its container is — audit it at the narrowest **and** widest
   width it is ever rendered in.
+- Treating a green gate as done. Passing is the floor: the page can be technically clean and still be the
+  weaker version of itself. Report the ceiling gap, never just the checkbox.
