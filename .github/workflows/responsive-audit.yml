@@ -1,0 +1,21 @@
+name: responsive audit
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - name: Audit the deployed preview
+        run: python scripts/responsive_audit.py --url "${{ vars.PREVIEW_URL }}" --devices iphone --out audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: responsive-audit
+          path: audit/

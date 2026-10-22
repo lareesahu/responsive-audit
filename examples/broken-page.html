@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:sans-serif;margin:0}
+.fixed{width:520px;background:#eee;padding:16px}   /* fixed width: overflows phones */
+.row{display:flex;gap:12px}.row>div{width:300px;background:#ddd}  /* rigid row */
+.clip{height:40px;overflow:hidden;background:#fdd;padding:8px}      /* clipped text */
+input{font-size:12px}                                               /* iOS zoom */
+img{width:120px;height:40px}                                        /* squashed */
+</style></head><body>
+<div class="fixed">Fixed 520px block</div>
+<div class="row"><div>Column A with a long line of text to push width</div><div>Column B</div></div>
+<div class="clip">This paragraph is far too long to fit inside a forty pixel box and will be cut off mid sentence without any way to read it.</div>
+<input placeholder="email">
+<img src="https://fireflyglobal.org/firefly-assets/firefly-og.jpg" alt="">
+<button style="width:18px;height:18px">x</button>
+</body></html>
