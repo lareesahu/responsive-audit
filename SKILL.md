@@ -3,7 +3,7 @@ name: responsive-audit
 description: Use when auditing or fixing an app's responsiveness.
 version: 1.2.0
 author: Lareesa Hu (Pulse Branding), built with Hermes
-license: Proprietary
+license: MIT
 metadata:
   hermes:
     icon: lucide:smartphone
